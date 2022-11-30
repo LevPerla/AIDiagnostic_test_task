@@ -1,35 +1,36 @@
+import os
+
 import SimpleITK as sitk
 import nibabel as nib
-import os
 import numpy as np
 import scipy
-from skimage.transform import resize
 from torch.utils.data import DataLoader
 
-def proccess_data(batch_size=10):
+def proccess_data(batch_size=10, train_rete=0.8, val_rate=0.1):
     images = get_images()
-    mask = get_masks()
-    size = (512, 512)
-    X = [resize(x, size, mode='constant', anti_aliasing=True) for x in images]
-    Y = [resize(y, size, mode='constant', anti_aliasing=False) for y in mask]
+    masks = get_masks()
 
-    X = np.array(X, np.float32)
-    Y = np.array(Y, np.float32)
+    X = np.array(images, np.float32)
+    Y = np.array(masks, np.float32)
     print(f'Loaded {len(X)} images')
 
+    # Split data to train val test
     ix = np.random.choice(len(X), len(X), False)
-    tr, val, ts = np.split(ix, [int(len(X) * 0.8), int(len(X) * 0.9)])
-    print(len(tr), len(val), len(ts))
+    tr_ind, val_ind, ts_ind = np.split(ix, [int(len(X) * train_rete), int(len(X) * (train_rete + val_rate))])
+    print(len(tr_ind), len(val_ind), len(ts_ind))
 
-    X = X.reshape(-1, *size, 1)
+    # reshape images
+    X = X.reshape(*X.shape, 1)
 
-    data_tr = DataLoader(list(zip(np.rollaxis(X[tr], 3, 1), Y[tr, np.newaxis])),
+    # Pack data to batches
+    data_tr = DataLoader(list(zip(np.rollaxis(X[tr_ind], 3, 1), Y[tr_ind, np.newaxis])),
                          batch_size=batch_size, shuffle=True)
-    data_val = DataLoader(list(zip(np.rollaxis(X[val], 3, 1), Y[val, np.newaxis])),
+    data_val = DataLoader(list(zip(np.rollaxis(X[val_ind], 3, 1), Y[val_ind, np.newaxis])),
                           batch_size=batch_size, shuffle=True)
-    data_ts = DataLoader(list(zip(np.rollaxis(X[ts], 3, 1), Y[ts, np.newaxis])),
+    data_ts = DataLoader(list(zip(np.rollaxis(X[ts_ind], 3, 1), Y[ts_ind, np.newaxis])),
                          batch_size=batch_size, shuffle=True)
     return data_tr, data_val, data_ts
+
 
 # Read images
 def load_dicom(directory):
@@ -41,28 +42,32 @@ def load_dicom(directory):
     image_zyx = sitk.GetArrayFromImage(image_itk).astype(np.int16)
     return image_zyx
 
+
 def get_images():
+    print('start image loading')
     # find image dirs
     proccessed_dirs = []
     images = []
-
-    for address, dirs, files in os.walk('subset_img/subset'):
+    for address, dirs, files in os.walk(os.path.join('..', 'data', 'subset')):
         for name in files:
             dir_path = os.path.join(address, *dirs)
-            if dir_path not in proccessed_dirs and '.ipynb_checkpoints' not in dir_path:
+            if dir_path not in proccessed_dirs:
                 proccessed_dirs.append(dir_path)
                 print(dir_path)
-                images_fr_folder = load_dicom(dir_path)
+                images_fr_folder = load_dicom(os.path.abspath(dir_path))
                 images.append(images_fr_folder)
 
     images = np.vstack(images)
+    print('images uploaded\n')
     return images
 
+
 def get_masks():
+    print('start mask loading')
     # Read masks
     mask = []
 
-    for address, dirs, files in os.walk('subset_masks'):
+    for address, dirs, files in os.walk(os.path.join('..', 'data', 'subset_masks')):
         for name in files:
             print(os.path.join(address, name))
             mask_i = nib.load(os.path.join(address, name))
@@ -70,4 +75,5 @@ def get_masks():
             mask_i = scipy.ndimage.rotate(mask_i, 90, (1, 2))
             mask.append(mask_i)
     mask = np.vstack(mask)
+    print('masks uploaded\n')
     return mask

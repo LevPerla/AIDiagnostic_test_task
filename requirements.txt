@@ -1,0 +1,6 @@
+SimpleITK
+nibabel
+numpy
+scipy
+matplotlib
+torch

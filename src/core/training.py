@@ -1,13 +1,16 @@
+import os
+
 import matplotlib.pyplot as plt
 import torch
-import os
+
+from src.core.dice_metric import dice_coeff
 
 
 def train_loop(model, opt, loss_fn, epochs, data_tr, data_val, device, patience=10):
+    print(f'\nStart model training on {epochs} epochs')
     history = []
     X_val, Y_val = next(iter(data_val))
     last_val_loss = 9999
-    best_model = None
     i = 0
 
     # Create out_folder
@@ -18,8 +21,9 @@ def train_loop(model, opt, loss_fn, epochs, data_tr, data_val, device, patience=
     for epoch in range(epochs):
         print('* Epoch %d/%d' % (epoch + 1, epochs))
 
-        avg_loss = 0
         avg_val_loss = 0
+        avg_val_dice = 0
+
         model.train()  # train mode
         for X_batch, Y_batch in data_tr:
             # data to device
@@ -33,28 +37,34 @@ def train_loop(model, opt, loss_fn, epochs, data_tr, data_val, device, patience=
             loss.backward()  # backward-pass
             opt.step()  # update weights
 
-            # calculate loss to show the user
-            avg_loss += (loss / len(data_tr)).item()
-
         avg_val_loss += (loss_fn(Y_val.to(device), model(X_val.to(device))) / len(Y_val)).item()
+        avg_val_dice += (dice_coeff(Y_val.to(device), model(X_val.to(device))) / len(Y_val)).item()
+        print(f'Epoch loss: {avg_val_loss}')
+        print(f'Epoch dice: {avg_val_dice}')
 
         if last_val_loss > avg_val_loss:
             last_val_loss = avg_val_loss
-            best_model = model.state_dict()
+            print(f"Best validation loss: {last_val_loss}")
+            print(f"Saving best model for epoch: {epoch + 1}\n")
+            torch.save({
+                'epoch': epoch + 1,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': opt.state_dict(),
+                'loss': last_val_loss},
+                os.path.join(RES_PATH, 'best_model.pth'))
             i = 0
         elif i >= patience:
             break
         else:
             i += 1
-        history.append(avg_val_loss)
+        history.append(avg_val_dice)
 
-    # Saving best model
-    torch.save(best_model, RES_PATH)
-
-
+    # Plot dice coeff per epoch
     plt.figure(figsize=(10, 6))
-    plt.plot(history, label="val_loss")
+    plt.plot(history, label="val_dice_coeff")
     plt.legend(loc='best')
     plt.xlabel("epochs")
-    plt.ylabel("loss")
-    plt.savefig(os.path.join(RES_PATH,'dice_per_epoch.png'))
+    plt.ylabel("dice coeff")
+    plt.savefig(os.path.join(RES_PATH, 'dice_per_epoch.png'))
+
+    print('Training has been finished')
