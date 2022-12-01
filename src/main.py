@@ -10,7 +10,7 @@ from src.core.training import train_loop
 device = utils.get_device()
 
 # Prepare and split data
-data_tr, data_val, data_ts = proccess_data(batch_size=10, train_rete=0.8, val_rate=0.1)
+data_tr, data_val, data_ts = proccess_data(batch_size=1, train_rete=0.8, val_rate=0.1)
 
 # Set model
 unet_model = UNet().to(device)

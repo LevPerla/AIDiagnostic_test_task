@@ -39,7 +39,7 @@ def train_loop(model, opt, loss_fn, epochs, data_tr, data_val, device, patience=
 
         avg_val_loss += (loss_fn(Y_val.to(device), model(X_val.to(device))) / len(Y_val)).item()
         avg_val_dice += (dice_coeff(Y_val.to(device), model(X_val.to(device))) / len(Y_val)).item()
-        print(f'Epoch loss: {avg_val_loss}')
+        print(f'Epoch validation loss: {avg_val_loss}')
         print(f'Epoch dice: {avg_val_dice}')
 
         if last_val_loss > avg_val_loss:
